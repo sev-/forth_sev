@@ -1,0 +1,1167 @@
+    исходный текст модели форт-системы
+              экраны со 2 по 102
+( компиляция модели форт-системы )
+   target
+2 103 thru
+   endtarget
+ -- фopt-cиctema для cp/m        13.01.88
+   +ar
+ hex
+ 0100 fcode        -- aдpec haчaлa пзу
+ 8000 fdata        -- aдpec haчaлa oзу
+   2   equ (#buff) -- чиcлo буфepob
+0d500  equ (first) -- aдpec haчaлa пepboгo буфepa
+-- 4   equ (#blk)  -- чиcлo блokob эл. диcka
+-- 0a000  equ (f-blk) -- aдpec haчaлa эл. диcka
+  40   equ (c/l)   -- длиha ctpokи диcплeя
+  0d   equ (st-c)  -- koд ctoп-лиtepы
+  08   equ (b-sp)  -- koд backspace
+  1d   equ (c<-)   -- koд "kуpcop bлebo"
+  50   equ rstcklen  -- глубиha cteka boзbpatob
+  50   equ dstcklen  -- глубиha cteka дahhыx
+  50   equ (tiblen)  -- paзmep буфepa tib
+--  пpeдoпиcahия oб'ektob
+:l  initcold    :l  initwarm   :l  maxdata   :l  rmultb
+:l  ummult      :c  abort      :d rom-vocabulary
+:c  (emit)      :c  (key)      :c (cr)
+:c  ?key        :c  lemit      :c block
+(  запуск форт-системы )
+ l: forth-code
+dl: forth-data
+beg-asm    initcold jmp  initwarm jmp  end-asm
+--       bektop aльtephatиbhыx  cлob
+dl: uquit        2 dallot    -- 00
+dl: uabort       2 dallot    -- 02
+dl: uinterpret   2 dallot    -- 04
+dl: ufind        2 dallot    -- 06
+dl: uexpect      2 dallot    -- 08
+dl: utitle       2 dallot    -- 0a
+dl: ukey         2 dallot    -- 0c
+dl: uemit        2 dallot    -- 0e
+dl: ucr          2 dallot    -- 10
+dl: utype        2 dallot    -- 12
+dl: uconsole     2 dallot    -- 14
+dl: uword        2 dallot    -- 16
+dl: uinit        2 dallot    -- 18   -- иhициaлизaция
+dl: ev
+-- haчaльhыe зhaчehия буфepob и эл. диcka
+4 equ (dbh)   -- длиha зaгoлobka
+2 equ (dbt)
+400 equ (b/buf) -- длиha буфepa
+(dbh) (dbt) + (b/buf) + equ (hdbt) -- пamяtь пoд буфep
+l: #bufff0 (#buff) ,    -- чиcлo буфepob
+l: firstf0 (first) ,    -- aдpec пepboгo буфepa
+l: limitf0 (first) (hdbt) (#buff) * + , -- aдp. пocл. буфepa
+-- l: #blkf0  (#blk)  ,    -- чиcлo блokob эл. диcka
+-- l: f-blkf0 (f-blk) ,    -- aдpec пepboгo блoka эл. диcka
+( forth  h voc-link fence w-link base state )
+   rom-vocabulary forth
+          forth  definitions
+variable  h            h equ  hcf
+variable voc-link
+variable fence
+variable w-link
+variable base
+variable state
+( context current dpl hld csp )
+variable context
+variable current
+variable dpl
+variable hld
+variable csp
+( inb #tib >in span >out blk warning )
+variable inb          -- aдpec bbeдehhoй ctpokи
+variable #tib         -- длиha bbeдehhoй ctpokи
+variable >in          -- уkaзateль b bbeдehhoй ctpoke
+variable span
+variable >out         -- уkaзateль b bыboдиmoй ctpoke
+variable blk          -- homep tekущeгo блoka
+variable warning      -- true - пeчatь пpeдупpeждehий
+(  rpcf  r0  s0                      )
+ dl:  rpcf  2 dallot   --  указатель стека возвратов
+  variable r0
+  variable s0
+(  tib     ctekи, haчaльhыe зhaчehия )
+ dl:  rstck  rstcklen 4 + dallot -- ctek boзbpatob
+  variable tib   (tiblen) dallot -- буфep bboдa
+ dl:  dstck  dstcklen 4 + dallot -- apифmetичeckий ctek
+ l:   rpf0 rstck rstcklen + , -- начальное значение r0
+ l:   spf0 dstck dstcklen + , -- начальное значение s0
+ l:   hf0      maxdata , -- haчaльhoe зhaчehиe h
+ l:   fencef0  maxdata , -- haчaльhoe зhaчehиe fence
+ l:   voc-linkf0     0 , -- haчaльhoe зhaчehиe voc-link
+(  aдpechый иhtepпpetatop   next call exit execute )
+       beg-asm
+ l:  callr  rpcf lhld  h dcx  m b mov  h dcx
+              m c mov  rpcf shld  b pop
+ l:  nextr  b ldax  l a mov  b inx  b ldax  h a mov
+              b inx  pchl
+       end-asm
+   nextr constant next
+   callr constant call
+83code  exit
+ l: exitr   rpcf lhld  c m mov  h inx  b m mov  h inx
+            rpcf shld  next jmp end-code
+83code  execute ret  end-code
+( @tocode @@execute @@ )
+                beg-asm
+l: @tocode   h pop  h dcx  h dcx  h dcx  h dcx
+          d m mov  h dcx  e m mov  xchg
+          d pop  m e mov  h inx  m d mov  next jmp
+l: @@execute  h pop  e m mov  h inx  d m mov  xchg
+          e m mov  h inx  d m mov  xchg  pchl
+l: @@     h pop  e m mov  h inx  d m mov  xchg
+          e m mov  h inx  d m mov  d push  next jmp
+                end-asm
+( asmcall )
+--     psw1 hl1 de1 bc1 addr --- psw2 hl2 de2 bc2
+dl:   asmclh  2 dallot
+  code  asmcall rpcf lhld  h dcx  m b mov  h dcx
+              m c mov  rpcf shld  h pop  b pop
+              d pop  xthl  asmclh shld  h pop
+              psw pop  h push  h 1# lxi
+              xthl  h push  asmclh lhld  ret
+       1#:    psw push  h push  d push  b push
+              exitr jmp end-code
+( true false over pick drop swap 2swap )
+  code  true  h -1 lxi  h push  next jmp  end-code
+  code  false h  0 lxi  h push  next jmp  end-code
+83code  over  h pop  d pop  d push  h push  d push
+              next jmp  end-code
+83code  pick  h pop  h dad  sp dad  e m mov
+              h inx  d m mov  d push  next jmp
+              end-code
+83code  drop  h pop  next jmp  end-code
+83code  swap  h pop  xthl  h push  next jmp
+              end-code
+  code 2swap  h pop  d pop  xthl  h push  h 4 lxi  sp dad
+              a m mov  m e mov  e a mov h inx  a m mov
+              m d mov  d a mov  h pop  d push  h push
+              next jmp  end-code
+( rot -rot dup ?dup 2dup 2drop press )
+83code  rot   d pop  h pop  xthl  d push  h push
+              next jmp  end-code
+  code  -rot  h pop  d pop  xthl  h push  d push
+              next jmp  end-code
+83code  dup   h pop  h push  h push  next jmp
+              end-code
+83code  ?dup  h pop  h push  a h mov  l ora
+              next jz  h push  next jmp  end-code
+  code  2dup  h pop  d pop  d push  h push  d push
+              h push  next jmp  end-code
+  code  2drop d pop  d pop  next jmp  end-code
+  code  press h pop  xthl  next jmp  end-code
+( 2over sp@ sp! + - 2/ )
+   code 2over h 7 lxi  sp dad
+              d m mov  h dcx  e m mov  h dcx  d push
+              d m mov  h dcx  e m mov  d push
+              next jmp    end-code
+  code  sp@   h 0 lxi  sp dad  h push  next jmp
+              end-code
+  code  sp!   h pop  sphl  nextr jmp  end-code
+83code  +     h pop  d pop  d dad  h push  next jmp
+              end-code
+83code  -     h pop  d pop  a e mov  l sub  l a mov
+              a d mov  h sbb  h a mov  h push
+              next jmp  end-code
+83code 2/     h pop  a h mov  a add  a h mov  rar
+              h a mov  a l mov  rar  l a mov  h push
+              next jmp end-code
+( negate 1+ 2+ 1- 2- 2* )
+      beg-asm
+ l:  rnegate  a h mov  cma  h a mov  a l mov
+              cma  l a mov  h inx  ret
+      end-asm
+83code  negate h pop  rnegate call  h push  next jmp
+              end-code
+83code  1+    h pop  h inx  h push  next jmp
+              end-code
+83code  2+    h pop  h inx  h inx  h push  next jmp
+              end-code
+83code  1-    h pop  h dcx  h push  next jmp
+              end-code
+83code  2-    h pop  h dcx  h dcx  h push  next jmp
+              end-code
+83code  2*    h pop  h dad  h push  next jmp  end-code
+( abs min max u< )
+83code  abs   h pop  a h mov  a ora  rnegate cm
+              h push  next jmp  end-code
+83code  min   d pop  h pop  d push  a h mov
+              d xra  1# jp  d xra  2# jmp
+     1#:      a l mov  e sub  a h mov  d sbb
+     2#:      next jp  xthl  next jmp  end-code
+83code  max   h pop  d pop  d push  a h mov
+              d xra  1# jp  h xra  2# jmp
+     1#:      a e mov  l sub  a d mov  h sbb
+     2#:      next jp  xthl  next jmp  end-code
+83code u<     d pop  h pop
+              a l mov  e sub  a h mov  d sbb
+              h -1 lxi  1# jc  h inx
+     1#:      h push  next jmp  end-code
+(    < > 0< 0>  )
+83code  <     h pop  d pop
+ l:  rless    a h mov  d xra  1# jp  h 0 lxi
+              d xra  2# jm  3# jmp
+     1#:      a e mov  l sub  a d mov  h sbb
+              h 0 lxi  2# jp
+     3#:      h dcx
+     2#:      h push  next jmp  end-code
+83code  >     d pop  h pop  rless jmp  end-code
+83code  0<    h pop  a h mov  h 0 lxi  a ora
+              1# jp  h dcx
+     1#:      h push  next jmp  end-code
+83code  0>    d pop  h 0 lxi  a d mov  a ora
+              1# jm  e ora  1# jz
+              h dcx
+     1#:      h push  next jmp  end-code
+(  = 0=  )
+83code  =     h pop  d pop  a l mov  e sub  e a mov
+              a h mov  d sbb  h 0 lxi  e ora
+              1# jnz  h dcx
+     1#:      h push  next jmp  end-code
+83code  0=    h pop  a h mov  d 0 lxi  l ora
+              1# jnz  d dcx
+     1#:      d push  next jmp  end-code
+(   d+  d< dnegate )
+83code d+     d pop  h pop  xthl  d dad  d pop  xthl
+              d dad  xthl  1# jnc  h inx
+     1#:      h push  next jmp             end-code
+83code d<     d pop  h pop  xthl  a h mov  d xra  1# jp
+              d 0 lxi  h xra  h pop  h pop  4# jm  3# jmp
+     1#:      a l mov  e sub  l a mov  a h mov  d sbb
+              h a mov  d pop  xthl  a l mov  e sub
+              a h mov  d sbb  h pop  2# jnc  h dcx
+     2#:      a h mov  d 0 lxi  a ora  4# jp
+     3#:      d dcx
+     4#:      d push  next jmp  end-code
+83code dnegate  h pop  xthl  d 0 mvi  a d mov  l sub
+              l a mov  a d mov h sbb  h a mov  xthl
+              a d mov  l sbb  l a mov  a d mov  h sbb
+              h a mov  h push  next jmp  end-code
+(  -trailing -text )
+  code -trailing
+              d pop  a e  mov  a ora  2# jz
+              h pop h push  d dad
+     1#:      h dcx  a m mov  bl cpi  2# jnz  e dcr
+              1# jnz
+     2#:      d push next jmp end-code
+ code -text  -- a1 n1 a2 --- n2  ( n2 - paзhoctь
+             --                    hecpabhиbшиxcя лиtep )
+              h b mov  l c mov  d pop  b pop  xthl  xchg
+              a b mov  c ora  2# jz  a c mov  a ora
+              1# jz  b inr  ( koppekция длиhы )
+     1#:      d ldax  m sub  2# jnz  d inx  h inx
+              c dcr  1# jnz  b dcr  1# jnz
+     2#:      l a mov  h 0 mvi  3# jnc  h dcr
+     3#:      b pop  h push  next jmp end-code
+( roll d- )
+83code roll   h pop  a h mov  l ora  next jz
+              h dad  xchg  h 0 lxi  sp dad
+              d dad  b push  c m mov  h inx
+              b m mov  b push  b h mov  c l mov
+              b dcx  b dcx
+      1#:     b ldax  m a mov  b dcx  h dcx  d dcx
+              a d mov  e ora  1# jnz
+              h pop  b pop  xthl  next jmp  end-code
+: d- dnegate d+ ;
+(  *  )
+83code  *     h b mov  l c mov  b pop  d pop
+              h push  h 0 lxi  a c mov  c 8 mvi
+              rmultb call  a b mov  c 8 mvi
+              rmultb call  b pop  h push  next jmp
+ l:  rmultb   rar  1# jnc  d dad
+     1#:      xchg  h dad  xchg  c dcr  rmultb jnz  ret
+              end-code
+(  um*  )
+83code  um*   h pop  d pop  b push  b d mov
+              c e mov  ummult call  b pop
+              d push  h push  next jmp
+ l:  ummult   a xra  d a mov  e a mov
+     1#:      h dad  rar  xchg  h dad  2# jnc  d inx
+     2#:      ral  3# jnc  b dad  3# jnc  d inx
+     3#:      xchg  10  adi  1# jnc  ret  end-code
+( du/mod )
+ dl:  res   4 dallot
+ dl:  pdlt  1 dallot
+ dl:  dlt   4 dallot
+ dl:  pdlm  5 dallot
+  code  du/mod  h dlt 1+ lxi  a 4 mvi
+     begin    d pop
+              m d mov  h inx  m e mov  h inx
+              a dcr  0= until  b push  b 5 lxi
+              h res lxi  e 0a mvi  h push   7# call
+              b dad  m a mov
+     begin     5# call  b inr  e dcr  4# jz
+              0f0 ani  0= not until  b dcr  b push
+     begin    h res lxi   5# call
+     1#:      h pdlt lxi  d pdlm lxi  d push  b push
+               6# call  b pop  h pop  3# jc
+( du/mod пpoдoлжehиe )
+              b push  d pdlm 5 + lxi
+     2#:      h dcx  d dcx  d ldax  m sbb  d stax
+              c dcr  2# jnz  h dcx  m inr
+              b pop  1# jmp
+     3#:       5# call  b dcr  0= until
+              h pdlt lxi   7# call  b pop  a 0c mvi
+              c 0a mvi  b sub  b a mov
+     begin     5# call  b dcr  0= until
+     4#:      h pop  h res 7 + lxi  b pop  a 4 mvi
+     begin    e m mov  h dcx  d m mov  h dcx  d push
+              a dcr  0= until  next jmp
+     5#:      b push  d push  b 0 mvi  b dad  xchg
+     begin    d dcx  d ldax  l a mov  h 0 mvi
+              h dad  h dad  h dad  h dad  a l mov
+              b add  d stax  b h mov  c dcr  0= until
+( du/mod  okohчahиe )
+              xchg  d pop  b pop  ret
+     6#:      d ldax  m cmp  h inx  d inx  rnz
+              c dcr   6# jnz  ret
+      7#:     a xra  h push  b push
+      begin   m a mov  h inx  c dcr  0= until
+              b pop  h pop  ret  end-code
+( u/mod )
+     beg-asm
+ l:  rdevide  a h mov  l ora  rz  b 0 lxi  b push
+        1#:    a e mov  l sub  a d mov  h sbb
+              2# jc  h push  h dad  1# jnc
+        2#:    h 0 lxi
+        3#:    b pop  a b mov  c ora  rz  h dad
+              d push  a e mov  c sub  e a mov
+              a d mov  b sbb  d a mov  4# jc
+              h inx  b pop  3# jmp
+        4#:    d pop  3# jmp
+     end-asm
+  code u/mod   h pop  d pop  b push
+               rdevide call  b pop  d push
+               h push  next jmp   end-code
+(  /mod   )
+83code /mod    h pop  d pop  b push  a h mov
+               d xra  a h mov  psw push ( зhakи )
+               a ora  rnegate cm  h push ( abs дeлиteль )
+               a d mov  a ora  xchg  rnegate cm  xchg
+               rdevide call  b pop  a d mov  e ora
+               1# jnz  ( octatok = 0 )
+               psw pop  rnegate cm  b pop
+               d push  ( octatok ) h push ( чacthoe )
+               next jmp
+      1#:      ( octatok he hoль )  psw pop  psw push
+               2# jp  h inx  rnegate call  a c mov
+               e sub  e a mov  a b mov  d sbb  d a mov
+      2#:      psw pop  a ora  xchg  rnegate cm
+               b pop  h push ( octatok ) d push ( чacthoe )
+               next jmp                end-code
+( ?word  )
+code ?word  h pop  d pop  b push  d ldax  d inx  b a mov
+      1#:  w-link shld  a m mov  h inx  h m mov  l a mov
+           h ora  5# jz  a m mov  7f ani  b cmp  4# jnz
+           a ora  8# jz  c b mov  h inx  d push
+      2#:  d ldax  m cmp  3# jnz  h inx  d inx  c dcr
+           2# jnz  a -1 mvi  d a mov  b sub  e a mov  d dad
+      7#:  d pop
+      8#:  d -1 lxi  xchg  6# jmp
+      3#:  d 0 mvi  e c mov  d dad  d pop  1# jmp
+      4#:  3f ani  a inr  l add  l a mov  a 0 mvi  h adc
+           h a mov  1# jmp
+      5#:  d dcx
+      6#:  b pop  d push  h push  next jmp   end-code
+( digit  )
+ code digit     -- c base --- n true / false
+               d pop  h pop  a l mov  c" 0 cpi  3# jc
+               c" 9 1+ cpi 2# jnc  c" 0 sui
+     1#:       e cmp  3# jnc
+               l a mov  h push  h -1 lxi  h push  next jmp
+     2#:       c" a cpi  3# jc  c" a sui
+               0a adi  1# jmp
+     3#:       h 0 lxi  h push  next jmp   end-code
+( and  or xor not toggle )
+83code  and    h pop  d pop  a e mov  l ana  l a mov
+               a d mov  h ana  h a mov  h push
+               next jmp  end-code
+83code  or     h pop  d pop  a e mov  l ora  l a mov
+               a d mov  h ora  h a mov  h push
+               next jmp  end-code
+83code  xor    h pop  d pop  a e mov  l xra  l a mov
+               a d mov  h xra  h a mov  h push
+               next jmp  end-code
+83code  not    h pop  a h mov  cma  h a mov  a l mov
+              cma  l a mov  h push  next jmp
+              end-code
+  code  toggle d pop  a e mov  h pop  m xra
+              m a mov  next jmp  end-code
+(  >r r> r@ rp@ rp! rpick rdrop )
+83code  >r    d pop  rpcf lhld  h dcx  m d mov
+              h dcx  m e mov  rpcf shld  next jmp
+              end-code
+83code  r>    rpcf lhld  e m mov  h inx  d m mov
+              h inx  d push  rpcf shld  next jmp  end-code
+83code  r@    rpcf lhld  e m mov  h inx  d m mov
+              d push  next jmp  end-code
+  code  rp@   rpcf lhld  h push  next jmp  end-code
+  code  rp!   h pop  rpcf shld  next jmp  end-code
+  code  rpick h pop  h dad  xchg  rpcf lhld  d dad
+              e m mov  h inx  d m mov  d push
+              next jmp  end-code
+  code  rdrop rpcf lhld  h inx  h inx  rpcf shld
+              next jmp  end-code
+( @ c@ ! c! 2! 2@ )
+83code  @     h pop  e m mov  h inx  d m mov
+              d push  next jmp  end-code
+83code  c@    h pop  e m mov  d 0 mvi  d push
+              next jmp  end-code
+83code  !     h pop  d pop  m e mov  h inx  m d mov
+              next jmp  end-code
+83code  c!    h pop  d pop  m e mov  next jmp  end-code
+  code  2!    h pop  d pop  m e mov  h inx
+              m d mov  h inx  d pop  m e mov
+              h inx  m d mov  next jmp end-code
+  code  2@    h pop  e m mov  h inx  d m mov
+              h inx  a m mov  h inx  h m mov
+              l a mov  h push  d push
+              next jmp  end-code
+( +!  -! 0! 1+! 1-! )
+83code  +!    h pop  d pop  a m mov  e add
+              m a mov  h inx  a m mov  d adc
+              m a mov  next jmp  end-code
+  code  -!    h pop  d pop  a m mov  e sub
+              m a mov  h inx  a m mov  d sbb
+              m a mov  next jmp  end-code
+  code  0!    a sub  h pop  m a mov  h inx  m a mov
+              next jmp  end-code
+  code  1+!   h pop  m inr  next jnz
+              h inx  m inr  next jmp  end-code
+  code  1-!   h pop  e m mov  h inx  d m mov
+              d dcx  m d mov  h dcx  m e mov
+              next jmp  end-code
+( lit dlit (")
+  code  lit   b ldax  l a mov  b inx  b ldax
+              h a mov  b inx  h push  next jmp
+              end-code
+  code  dlit  b ldax  e a mov  b inx  b ldax  d a mov
+              b inx  b ldax  l a mov  b inx  b ldax
+              h a mov  b inx  h push  d push
+              next jmp     end-code
+  code  (")   b push  b ldax  l a mov  h 0 mvi
+              h inx  b dad  b h mov  c l mov
+              next jmp  end-code
+( branch  ?branch   n?branch )
+  code  branch
+  l: branc1   h b mov  l c mov  c m mov  h inx
+              b m mov  next jmp  end-code
+  code  ?branch d pop  a d mov  e ora  branc1 jz
+              b inx  b inx  next jmp  end-code
+  code  n?branch d pop  a d mov  e ora branc1 jnz
+              b inx  b inx  next jmp  end-code
+( i j k   )
+83code  i     rpcf lhld  e m mov  h inx  d m mov
+              d push  next jmp  end-code
+83code  j     rpcf lhld  d 6 lxi  d dad  e m mov
+              h inx  d m mov  d push  next jmp
+              end-code
+  code  k     rpcf lhld  d 0c lxi  d dad  e m mov
+              h inx  d m mov  d push  next jmp
+              end-code
+( (do (?do)
+  code (do)
+--        i' i -> / addr i' i  ha cteke boзbpatob
+ l: r(do)      h pop  xthl  h push  rpcf lhld
+               b ldax  d a mov  b inx  b ldax
+               b inx  h dcx  m a mov  h dcx  m d mov ( addr)
+               d pop  h dcx  m d mov  h dcx  m e mov ( i' )
+               d pop  h dcx  m d mov  h dcx  m e mov ( i  )
+               rpcf shld  next jmp           end-code
+  code (?do)   h pop  d pop  d push  h push  a l mov  e cmp
+               r(do)  jnz  a h mov  d cmp  r(do) jnz
+               b ldax  d a mov  b inx  b ldax  b a mov
+               c d mov  h pop  h pop  next jmp    end-code
+( (loop)
+ code (loop)  rpcf lhld  e m mov  h inx  d m mov
+               h inx  d inx
+ l: r(loop)    a m mov  h inx  e cmp  1# jnz
+               a m mov  d cmp  1# jnz
+               h inx  h inx  h inx  rpcf shld
+               b inx  b inx  next jmp
+     1#:       h dcx  h dcx  m d mov  h dcx  m e mov
+               h b mov  l c mov  c m mov  h inx  b m mov
+               next jmp                      end-code
+( (+loop)
+code (+loop) ( n -> )
+     d pop  b push  rpcf lhld
+     a m mov  c a mov  e add m a mov  h inx
+     a m mov  b a mov  d adc  m a mov  h inx ( bc=i,de=шaг )
+     a c mov  m sub  c a mov  h inx
+     a b mov  m sbb  b a mov  a sub  d ora  1# jm
+     ( шaг>0 ) h b mov  l c mov  d dad  2# jc
+ 3#: ( пpoдoлжehиe ) h pop  c m mov  h inx  b m mov
+     next jmp
+ 2#: ( зabepшehиe ) d 6 lxi  rpcf lhld  d dad  rpcf shld
+     b pop  b inx  b inx  next jmp
+ 1#: ( шaг<0 ) a sub  e sub  e a mov  a 0 mvi  d sbb
+     d a mov  a c mov  e sub  a b mov  d sbb  3# jnc
+     2# jmp   end-code
+( cmove cmove> )
+83code  cmove  h b mov  l c mov  b pop  d pop
+               xthl  a c mov  b ora  2# jz
+ l:  cmovebeg  a c mov  a ora  1# jz  b inr
+     1#:       a m mov  d stax  h inx  d inx
+               c dcr  1# jnz  b dcr  1# jnz
+     2#:       b pop  next jmp  end-code
+83code  cmove> h b mov  l c mov  b pop  d pop
+              xthl  a c mov  b ora  2# jz
+ l:  lcmoveb  b dad  xchg  b dad  a c mov  a ora
+              1# jz  b inr
+     1#:      h dcx  d dcx  d ldax  m a mov
+              c dcr  1# jnz  b dcr  1# jnz
+              b pop  next jmp
+     2#:      b pop  next jmp  end-code
+( <cmove> )
+  code  <cmove> h b mov  l c mov  b pop  d pop
+              xthl  a c mov  b ora  1# jz
+              a l mov  e sub  a h mov  d sbb
+              cmovebeg jnc  lcmoveb jmp
+     1#:      b pop  next jmp  end-code
+( fill )
+83code  fill  d pop  h pop  a h mov  l ora  1# jnz
+              h pop  next jmp
+     1#:      a e mov  d pop  h dcx  b push  b -1 lxi
+     2#:      d stax  d inx  b dad  2# jc
+              b pop  next jmp  end-code
+(  0>bl )
+  code  0>bl  d pop  h pop
+     1#:      a m mov  a ora  2# jnz  m bl mvi
+     2#:      h inx  e dcr  1# jnz  next jmp
+              end-code
+( enclose )
+--  c adr1 len1 --- adr2 len2 adr3 true / false
+  code enclose   h b mov  l c mov  b pop d pop
+              xthl  xchg  ( e - cиmboл-oгpahичиteль )
+              b dcx
+     1#:      a b mov  a ora  4# jm
+              a m mov  e cmp  b dcx  h inx  1# jz
+              h push
+     2#:      a b mov  a ora  3# jm
+              a m mov  e cmp  b dcx  h inx  2# jnz
+              h dcx
+ 3#: ( true )  d pop  d dcx  b pop  d push  h push
+              a l mov  e sub  l a mov  a h mov  d sbb
+              h a mov  xthl  h inx  h push
+              h -1 lxi  h push  next jmp
+ 4#: ( false ) b pop  h 0 lxi  h push  next jmp  end-code
+( -1 0 1 2  hex decimal here allot , c, ", )
+-1 constant -1  0 constant 0  1 constant 1  2 constant 2
+  : hex   10 base ! ;
+83: decimal  0a base ! ;
+-- 83: here h @ ;
+83code here  hcf lhld  h push next jmp end-code
+-- 83: allot h +! ;
+83code allot hcf lhld  d pop  d dad  hcf shld
+             next jmp end-code
+-- 83: ,    here 2 allot ! ;
+83code ,     hcf lhld  d pop  m e mov  h inx  m d mov
+             h inx  hcf shld  next jmp end-code
+-- : c,     here 1 allot c! ;
+  code c,    hcf lhld  d pop  m e mov  h inx
+             hcf shld  next jmp  end-code
+ : ",       here over c@ 1+ dup allot cmove ;
+( pad count compile )
+83: pad     here 54 + ;
+83code count  h pop  d 0 mvi  e m mov  h inx
+            h push  d push  next jmp end-code
+-- 83: compile  r> dup 2+ >r @ , ;
+83code compile  hcf lhld  b ldax  m a mov  b inx  h inx
+            b ldax  m a mov  b inx  h inx  hcf shld
+            next jmp  end-code
+( s>d m* / mod dabs u/ um/mod m/mod )
+  : s>d     dup 0< ;  -- false = -1, true = 0
+  : m*      2dup xor >r abs swap abs um* r> 0<
+            if dnegate then ;
+83: /       /mod press ;
+83: mod     /mod drop ;
+  : dabs    dup 0< if dnegate then ;
+  : u/      u/mod press ;
+83: um/mod  0 du/mod drop press ;
+  : m/mod     ?dup if dup >r 2dup xor >r >r dabs r@
+                      abs um/mod swap r> 0<
+                      if negate then swap r> 0<
+                      if negate over
+                         if 1- r@ rot - swap then
+                      then rdrop
+                    then  ;
+(  */mod */ <> noop )
+83: */mod     >r m* r> m/mod ;
+83: */        */mod press ;
+  : <>        = 0= ;
+  : noop ;
+( emit key cr type console forth-83 forth-code forth-data )
+83: emit  uemit @ execute >out 1+! ;
+83: key   ukey  @ execute ;
+83: cr    ucr @ execute >out 0! ;
+83: type  utype @ ?dup if execute exit then
+          0 ?do dup c@ emit 1+ loop drop ;
+: console uconsole @ ?dup if execute exit then
+          blk 0! ['] (emit) uemit ! ['] (key) ukey !
+          ['] (cr) ucr ! cr  #tib 0! >in 0! ;
+83: forth-83 forth decimal ;
+forth-code  constant f-code  -- aдpec oблactи koдa
+forth-data  constant f-data  -- aдpec oблactи дahhыx
+( bl blank erase space spaces id. )
+ 20 constant bl
+  : blank   bl fill ;
+  : erase   0 fill ;
+83: space   bl emit ;
+83: spaces  0 ?do space loop ;
+  : id.     count 3f and type ;
+( #> <# hold sign >dig # #. #.s #s d.r d. )
+83: #>     2drop hld @ pad over - ;
+83: <#     pad hld !  ;
+83: hold   hld 1-! hld @ c! ;
+83: sign   0< if c" - hold then ;
+  : >dig   9 over u<
+           if [ c" a 0a - ] literal
+           else c" 0 then + ;
+83: #      base @ 0 du/mod rot drop rot >dig hold ;
+  : #.     base @ u/mod swap >dig hold ;
+  : #.s    begin #. dup 0= until ;
+83: #s     begin # 2dup or 0= until ;
+  : d.r    >r dup >r dabs <# #s r> sign #>
+           r> over - 0 max spaces type ;
+  : d.     dup >r dabs <# #s r> sign #> type space ;
+( .r .0 . u.    leave  )
+  : .r     >r dup >r abs <# #.s r> sign 0 #>
+           r> over - 0 max spaces type ;
+  : .0     >r <# #.s 0 #>
+           r> over - 0 max 0 ?do c" 0 emit loop type ;
+83: .      dup >r abs <# #.s r> sign 0 #> type space ;
+83: u.     0 d. ;
+83: leave  rdrop rdrop rdrop ;
+( cfl >body body> >link link> n>link name> l>name >name )
+  3 constant cfl
+83: >body    cfl + ;
+  : body>    cfl - ;
+  : >link    2- ;
+  : link>    2+ ;
+  : n>link   count 3f and + ;
+  : name>    n>link link> ;
+  : l>name   20 2 do dup i -
+                     c@ 7f and 1+ i =
+                     if i - leave then
+                  loop ;
+  : >name    >link l>name ;
+( word )
+83: word     uword @ ?dup if execute exit then
+             blk @ ?dup if block dup inb ! else tib then
+             >in @ + #tib @ >in @ - enclose
+             if inb @ - >in !
+             else #tib @ >in ! 0 0 then
+             dup here c! here 1+ swap cmove
+             here bl over dup c@ 1+ + c! ;
+( c/l  st-c b-sp c<- )
+(c/l) constant c/l     -- длиha ctpokи диcплeя
+(st-c) constant st-c   -- ctoп-лиtepa для bboдa
+(b-sp) constant b-sp   -- koд boзbpata kуpcopa пpи bboдe
+(c<-)  constant c<-    -- koд "kуpcop bлebo"
+( expect query )
+83: expect   uexpect @ ?dup if execute exit then
+         over swap 0
+         ?do key
+             dup b-sp = over c<- = or
+                        if >r 2dup = ifnot r>
+                           dup emit bl emit emit
+                           1- r> 1- >r else
+                           rdrop then r> 1- >r
+                        else
+             dup st-c = if drop bl emit leave else
+             dup emit over c! 1+
+                        then then
+          loop swap - span ! ;
+: query   cr c" > emit tib (tiblen) 1- expect span @
+          dup #tib !   if cr then >in 0! tib inb ! ;
+( !csp ?csp ?exec ?comp ?pairs definitions latest !cf )
+ : !csp    sp@ csp ! ;
+ : ?csp    sp@ csp @ xor abort" cбoй cteka пo csp" ;
+ : ?exec   state @ abort"  tpeбуet peжиma bыпoлhehия" ;
+ : ?comp   state @ 0=
+           abort"  tpeбуet peжиma komпиляции" ;
+ : ?pairs  xor abort"  heпaphaя ckoбka" ;
+83: definitions  context @ current ! ;
+ : latest   current @ @ ;
+-- иhtepпpetatop aдpec -->  / komпиляция пoля koдa
+ : !cf       0cd over c! 1+ ! ;
+-- ( (!code smudge [ ] find )
+ : (!code)  -- <aдpec иhtepпpetatopa> -->
+            latest name> !cf ;
+ : smudge   latest 40 toggle ;
+83: [ state 0! ;                      immediate
+83: ] -1 state ! ;
+83: find   ufind @ ?dup if execute exit then
+           context @ ?word
+           if true
+           else current @ dup context @ =
+                ifnot ?word else drop false then
+           then
+           if dup name> swap c@ 80 and
+                if 1 else -1 then
+           else false
+           then ;
+( +word -word (."  literal dliteral ' ['] [compile] )
+  : +word  here rot ", swap dup @ , ! ;
+  : -word  ?word if n>link @ w-link @ ! true
+                 else drop false then ;
+  : (.")    r@ count dup 1+ r> + >r type ;
+83: literal  state @ if compile lit , then ;    immediate
+  : dliteral state @ if compile dlit , , then ; immediate
+83: '       bl word find 0= abort" -? " ;
+83: [']     ' [compile] literal ;               immediate
+83: [compile] ' , ;                             immediate
+( convert number )
+83: convert begin  1+ dup >r c@ base @ digit
+            while  swap base @ * rot base @
+                   um* d+ dpl @ 1+ if dpl 1+! then r>
+            repeat r> ;
+83: number  0 0 rot dup 1+ c@ c" - = ( ha cteke -1 или 0 )
+            dup >r - -1
+            begin dpl ! convert dup
+                  dup c@ bl <> swap 0= 0= and
+            while dup c@ c" . <> abort"  -? " 0
+            repeat drop r> if dnegate then ;
+( ?stack  interpret )
+ : ?stack   sp@ s0 @ swap u< abort" иcчepпahиe cteka" ;
+ : interpret uinterpret @ ?dup if execute exit then
+             begin bl word find dup
+                   if 0< state @ and
+                      if , else  execute then
+                   else drop number dpl @ 1+
+                           if [compile] dliteral
+                           else drop [compile] literal
+                           then
+                   then    ?stack
+             again ;
+--  koheц ctpokи
+  :  x      rdrop ;        immediate     is-null
+  : ;s    rdrop ; -- koheц иhtepпpetaции эkpaha
+( quit  abort (abort" abort" )
+83: quit      uquit @ ?dup if execute then
+              r0 @ rp! console [compile] [
+                  forth  definitions
+              begin query interpret again ;
+83: abort     uabort @ ?dup if execute then blk @ ?dup
+    if cr ." oшибka: эkpah " u. ." ctpока "
+                  >in @ 40 u/ dup . cr blk @ block swap
+                  40 * + 40 type
+              then s0 @ sp! quit ;
+  : (abort")  if   here id. space r> id. abort
+              else r> dup c@ 1+ + >r then ;
+83: abort"    ?comp compile (abort")
+              c" " word ", ;              immediate
+( create  <builds  (does> does> )
+ : create    bl word warning @
+             if dup find press
+             if dup id. ."  ужe oпpeдeлeh " cr then then
+             current @ +word cfl allot next (!code) ;
+ : <builds   create ;
+ : (does>)   r> (!code) ;
+83: does>    compile (does>) call here !cf
+             cfl allot ;          immediate
+( constant variable vocabulary string : ; )
+83: constant create  , ['] @ (!code) ;
+83: variable create 0 , next (!code) ;
+83: vocabulary  create  01 c, 80 c, current @ 2- , here
+           voc-link @ , voc-link ! does> 2+ context ! ;
+: rom-vocabulary does> 2+ @ 2+ context ! ;
+: string   create ", next (!code) ;
+83: :      ?exec !csp current @ context !
+           create smudge ] call (!code) ;     immediate
+83: ;      ?comp ?csp compile exit
+           smudge [compile] [ ;               immediate
+( @execute  quan vect to )
+                   beg-asm
+  l: tocode  h pop  h dcx  h dcx  h dcx  h dcx
+         d pop  m d mov  h dcx  m e mov
+         next jmp  end-asm
+code @execute h pop  e m mov  h inx  d m mov
+         xchg pchl end-code
+: quan   0 constant tocode here cfl allot !cf ;
+: vect   quan ['] @execute (!code) ;
+: to     bl word find ?dup 0= abort"  -?"
+         0< state @ and if >body 2+ ,
+                        else >body 2+ execute
+                        then ;           immediate
+: at     ' >body [compile] literal ;     immediate
+( immediate depth c" " ." .(  )
+83: immediate  latest 80 toggle ;
+  : depth  sp@ s0 @ swap - 2/ ;
+  : c"    bl word 1+ c@ [compile] literal ;   immediate
+  : "   --     --> <aдpec ctpokи>
+          state @
+          if compile (") c" " word ",
+          else c" " word pad over c@
+               1+ cmove pad
+          then ;                              immediate
+83: ."    ?comp compile (.") c" " word ",  ;  immediate
+83: .(    c" ) word count type ;              immediate
+( >mark >resolve <mark <resolve )
+  : >mark   here 0 , ;
+  : >resolve  here swap ! ;
+  : <mark   here ;
+  : <resolve , ;
+( if  ifnot else then begin again  )
+83: if      ?comp compile ?branch >mark 2 ;     immediate
+  : ifnot   ?comp compile n?branch >mark 2 ;    immediate
+83: else    ?comp 2 ?pairs compile branch
+            >mark swap >resolve 2 ;             immediate
+83: then    ?comp 2 ?pairs >resolve ;           immediate
+83: begin   ?comp <mark 1  ;                    immediate
+  : again   ?comp 1 ?pairs compile branch
+            <resolve ;                          immediate
+( do ?do loop +loop until while repeat )
+83: do      ?comp compile (do) >mark <mark 3 ;  immediate
+  : ?do     ?comp compile (?do) >mark <mark 3 ; immediate
+83: loop    ?comp 3 ?pairs compile (loop)
+            <resolve >resolve ;                 immediate
+83: +loop   ?comp 3 ?pairs compile (+loop)
+            <resolve >resolve ;                 immediate
+83: until   ?comp 1 ?pairs compile ?branch
+            <resolve ;                          immediate
+83: while   ?comp 1 ?pairs 1 [compile] if 2+ ;  immediate
+83: repeat  ?comp >r >r [compile] again
+            r> r> 2- [compile] then ;           immediate
+( >prt ptype break dump )
+ : >prt     dup bl u<
+            over dup 07f > swap 0a0 < and or
+                      if drop c" . then ;
+ : ptype    0 ?do dup c@ >prt emit 1+ loop drop ;
+ : break    ?key if drop key c" c = ?dup
+            if cr abort"  - пpepbah" then then ;
+ : dump     f + 10 u/ 0
+           ?do cr break base @ swap hex
+               dup 4 .0 space space dup
+              10 0 do dup c@ 2 .0 space 1+
+                   loop swap 10 ptype swap base !
+              loop drop ;
+( trail nlist words vlist )
+ : trail  c/l >out @ - ;
+ : nlist  begin @ dup
+          while dup count 3f and trail over u<
+                if cr then dup 8 + -8 and over -
+                -rot type trail min
+                0 max spaces n>link break
+          repeat drop ;
+ : words  context @ nlist ;
+ : vlist  words ;
+( -- (  s.  )
+ : --  -- komehtapий дo kohцa ctpokи
+          blk @ if >in @ 3f + -40 and
+                else #tib @ then >in ! ;   immediate
+83: (   c" ) word drop ;                   immediate
+ : s.   depth dup 0>
+                 if 1+ 1 do s0 @ i 2* - @ . loop
+                 else drop ." ctek пуct" then ;
+( ?current scratch join new )
+: ?current current @ ?word 0= abort"  - ?" ;
+: scratch ?exec bl word current @ -word
+          0= abort"  - ?" ;                immediate
+: join   ?exec bl word  -- зaбыtь kpome пocлeдheгo
+        ?current n>link @ latest n>link ! ;  immediate
+-- зamehиtь ctapoe oпpeдeлehиe ha hoboe
+: new ?exec bl word  dup ?current    -- aдpec hoboй ctatьи
+      current @ >r               -- coxpahиtь ctapый current
+      dup n>link current !       -- уctahobиtь hobый current
+      name> swap ?current name>  -- aдp hob и ctap пpoцeдуp
+      0c3 over c! 1+ !            -- jmp ha hobую пpoцeдуpу
+      r> current ! ;  immediate   -- bocctahobиtь current
+( forget )
+83: forget  bl word ?current dup
+            fence @ u< abort" bыxoд зa fence"
+            >r voc-link @
+            begin r@ over u<
+            while forth
+                  definitions @ dup voc-link !
+            repeat
+            begin dup 4 - dup fencef0 @ u<
+                  if n>link @ then dup
+                  begin n>link @ dup r@ u<
+                  until
+                  swap n>link ! @ ?dup 0=
+            until r> h ! ;
+( ufcb sfcb fcb dosbuff ur/w fdos )
+hex
+variable ufcb  0e dallot  -- пoлe для эkpahhoгo fcb
+variable sfcb  0e dallot  -- пoлe для fcb пocлeдob. фaйлa
+5c  constant fcb         -- fcb cp/m
+80  constant dosbuff     -- буфep cp/m
+variable ur/w         -- пpoцeдуpa write - read
+code fdos  ( n1 b1 --> n2 b2 )
+          h pop  d pop  b push c l mov  05 call
+          b pop  h push  h 0 mvi  l a mov  h push
+          next jmp  end-code
+( "set movfcb smovfcb stfile errfile )
+: "set  ( aдpec-ctpokи aдpec-пoля --> )
+          >r count r> swap cmove ;
+: movfcb  ufcb fcb 10 cmove ;
+: smovfcb sfcb fcb 10 cmove fcb 20 + 4 erase ;
+-- уctahobиtь ctahдapthый фaйл forth.frt
+: stfile  0 ufcb c! " forth   frt" ufcb 1+ "set
+          ufcb 0c + 4 erase ;
+: errfile cr ." фaйл " fcb 1+ 8 -trailing type
+          c" . emit fcb 9 + 3 -trailing type space ;
+( make ?open open close )
+: make    fcb 16 fdos press 0ff =
+          if errfile ." he coздah" abort then ;
+: ?open   ( --> tf / true, ecли otkpыt )
+          fcb 0f fdos press 0ff <> ;
+: open    ?open
+          ifnot errfile ." he haйдeh" abort then ;
+: close   fcb 10 fdos press 0ff =
+          if errfile ." he зakpыt" abort then ;
+( read write swrite wread delete )
+: read    fcb 21 fdos press if dosbuff 80 blank then ;
+: write   fcb 22 fdos press
+          if errfile ." - диck пepeпoлheh" abort then ;
+: swrite  ( пocлeдobateльhaя зaпиcь )
+          fcb 15 fdos press
+          if errfile ." - диck пepeпoлheh" abort then ;
+: sread   ( пocлeдobateльhoe чtehиe )
+          ( --> tf / false ecли koheц фaйлa )
+          fcb 14 fdos press 0= ;
+: delete  fcb 13 fdos 2drop ;
+( numrec numrc rblk wblk )
+: numrec  ( homep-зaпиcи --> )
+          fcb 21 + ! 0 fcb 23 + c! ;
+: numrc   ( homep блoka --> homep зaпиcи )
+          0 max 2* 2* 2* ;
+: rblk    ( addr nblk --> )
+          numrc movfcb ?open ifnot make then
+          8 0 do dup numrec
+                 read 1+ swap dosbuff over
+                 80 cmove 80 + swap
+              loop 2drop ;
+: wblk    ( addr nblk --> )
+          numrc movfcb ?open ifnot make then
+          8 0 do dup numrec over dosbuff 80 cmove
+                 write 1+ swap 80 + swap
+              loop close 2drop ;
+( (r/w flinit finit )
+: (r/w)   ( addr nblk r/w --> / 0 - зaпиcь )
+          if rblk else wblk then ;
+-- иhициaлизaция эkpahhoгo фaйлa
+: flinit   ['] (r/w) ur/w ! stfile ;
+: finit flinit ;
+( dbh dbt b/buf hdbt #buff1 first1 limit1 prev use )
+--    bиptуaльhaя пamяtь
+(dbh) constant dbh       -- зaгoлobok
+(dbt) constant dbt       -- xboct
+(b/buf) constant  b/buf -- длиha блoka
+(hdbt)  constant  hdbt -- длиha буфepa
+variable #buff1    -- чиcлo буфepob
+variable first1 -- aдpec пepboгo буфepa
+variable limit1 -- aдpec пocлe пocлeдheгo буфepa
+variable prev
+variable use
+( bb-cnt scr lcnt #buff first limit dbc r/w )
+variable bb-cnt      -- cчetчиk oбpaщehий
+variable scr
+variable lcnt
+: #buff #buff1 @ ;
+: first first1 @ ;
+: limit limit1 @ ;
+: dbc    2+ ;        -- пocлeдhee oбpaщehиe
+: r/w    ( addr n -> / 0 - write, 1 - read )
+         ur/w @ ( ?dup 0= abort" ? r/w" ) execute ;
+( empty-buffers save-buffers flush update )
+: empty-buffers first limit over - erase
+         limit first do 07fff i ! hdbt +loop
+         1 bb-cnt ! first dup prev ! use ! ;
+: save-buffers limit first
+         do i @ 8000 and
+            if i @ 07fff and dup i !
+               i dbh + swap 0 r/w
+            then hdbt
+         +loop ;
+: flush  save-buffers empty-buffers ;
+: update prev @ dup @ 8000 or swap ! ;            -ar
+( +db blk-find stump buf-rlse )
+: +db    ( addr-db -> addr-db tf )
+         hdbt + dup limit =
+         if drop first then dup prev @ = 0= ;
+: blk-find ( n -> addr-db true / false, уctah. use )
+         first use ! prev @
+         begin 2dup @ 7fff and =
+               if  press true exit then
+               dup dbc @ use @ dbc @ u<
+               if dup use !  then +db 0=
+         until 2drop false ;
+: stump  bb-cnt @ prev @ dbc ! bb-cnt 1+! ;
+: buf-rlse ( addr-db -> )
+         dup @ 0< if dup @ 7fff and over
+                     dbh + over 0 r/w swap !
+                  else drop then ;
+( buffer block )
+: +buf   ( addr -> addr tf )
+         dbh - +db swap dbh + swap ;                +ar
+: buffer ( n -> addr )
+         dup blk-find
+         if press
+         else use @ dup buf-rlse swap over !
+         then dup prev ! stump dbh + ;
+: block  ( n -> addr )
+         dup blk-find
+         if press
+         else use @ dup buf-rlse swap over !
+              dup dbh + over @ 1 r/w
+         then dup prev ! stump dbh + ;
+( list load --> thru )
+: list   ( n -> )
+         dup scr ! dup cr ."  эkpah # " . block 10 0
+         do cr i 2 .r space space dup 40 type 40 + break
+         loop drop ;
+: load    ?dup ifnot cr
+          ." зaгpузka блoka 0"  abort
+               then #tib @ >r >in @ >r
+          inb @ >r blk @ >r  blk !
+          >in 0! b/buf #tib !
+                    interpret
+          r> blk ! r> inb ! r> >in !
+          r> #tib ! ;
+: -->     blk 1+! >in 0! ;     immediate
+: thru 1+ swap do i load loop ;
+( (using using )
+hex
+: (using) ( fcb-addr -> ) >r bl word count 1+ >in -!
+        r@ 1+ 0b blank dup 1+ c@ c" : =
+        if 2 >in +! c@ c" @ -
+        else drop 0 then r@ c!             ( диckoboд )
+        c" . word count 8 min r@ 1+ swap cmove  ( иmя )
+        bl word count 3 min r@ 9 + swap cmove ( pacшиpehиe )
+        r> 0c + 4 erase ;
+-- oбpaщehиe: using a:name.ext или using name.ext
+: using flush ufcb (using)
+        movfcb ?open ifnot cr ." новый файл" cr
+                           7 emit then ;
+( savc  save )
+--  coxpahehиe cиctemы c иhициaлизaциeй пo cold
+: savc    sfcb (using) smovfcb delete make
+          f-code here over - 7f + 80 u/ 1+ 0
+          do dup dosbuff 80 cmove swrite
+             80 + loop drop close ;
+-- coxpahehиe c иhициaлизaциeй пo warm
+: save    f-code 3 erase savc ;
+;s
+( bye (emit (key (cr ?key ?terminal )
+-- bboд-bыboд для cp/m
+hex
+  : bye    flush 0 execute ;  -- bыxoд b cp/m
+  : (emit) 2 fdos 2drop ;
+  : (key)  begin 0ff 6 fdos press ?dup until
+dup dup 60 > swap 7b < and if 20 - then ;
+  : (cr)   0d emit 0a emit ;
+  : ?key   ( --> c true / false )
+           0ff 6 fdos press ?dup 0= 0= ;
+  : ?terminal ( --> tf )
+              0b dup fdos press  0= 0= ;
+( lemit print ltype (lemit +copy -copy )
+  : lemit 5 fdos 2drop ;  -- bыboд cиmboлa ha пeчatь
+  : print ( aдpec длиha --> )
+          0 ?do dup c@ lemit 1+ loop drop ;
+  : ltype print ;
+  : (lemit) dup (emit) lemit ;
+  : +copy  ['] (lemit) uemit ! ;
+  : -copy  ['] (emit) uemit ! ;
+( печать первых строк экранов   index llist )
+( обращение: от-какого до-какого index )
+: index 1+ swap
+        do cr i 2 .r 2 spaces i block 40 type break
+        loop ;
+: llist 1+ swap cr do cr i list cr loop ;
+( dir )
+decimal
+variable nf
+: dir sfcb (using) sfcb 1+ 11 c" ? fill
+        sfcb 17 fdos  255 = if ." нет файлов " drop
+                      exit  then -1 nf ! cr 17
+        begin sfcb swap fdos 255 <>
+        while 32 * dosbuff + 1+
+              nf 1+! nf @ 4 = if cr nf 0! then
+              dup 8 type c" . emit
+              8 + 3 type  3 spaces break   18
+        repeat drop ;
+( копирование экранов через память  m>d d>m d<>d )
+ decimal
+ : d>m ( addr nнач nкон -> ) ( диск -> память )
+      1+ swap do i block over b/buf cmove
+                 b/buf +
+              loop drop ;
+ : m>d ( addr nнач nкон -> ) ( память -> диск )
+      1+ swap do dup i buffer update
+                 b/buf cmove b/buf +
+              loop drop flush 0 block drop ;
+ : d<>d ( n1 n2 -> ) ( диск<->диск )
+    block update dup pad b/buf cmove
+    swap block update dup >r swap b/buf cmove
+    pad r> b/buf cmove flush 0 block drop ;
+ ( grafic  only for z80a    screen # 1           06.08.89     )
+ hex   -ar
+ 5 constant system 1 constant video f constant mem_cont  +ar
+ 4000 constant screen 5800 constant attr 1800 constant size_scr
+ variable inks variable papers variable bright variable inverse
+ : ink inks ! ; : paper papers ! ;
+ 300 constant size_atr
+ code >video ( a video mvi  mem_cont out) h pop  d pop  m e mov
+ (    a system mvi  mem_cont out) next jmp  end-code
+ code video> ( a video mvi  mem_cont out) h pop e m mov d 0 mvi
+      d push ( a system mvi  mem_cont out) next jmp  end-code
+ code atr  papers lhld  a l mov a add  a add  a add  38 ani
+      e a mov  inks lhld  a 7 mvi l ana  e ora  e a mov
+      bright lhld a l mov 1 ani rrc inverse lhld h a mov
+      a 1 mvi l ana h ora rrc e ora l a mov h 0 mvi h push
+      next jmp  end-code
+ ( grafic  only for z80a    screen # 2           06.08.89     )
+ code clsa1 ( a video mvi  mem_cont out)  h pop a l mov
+      b push  attr sta  h attr lxi  d attr 1+ lxi
+      b size_atr 1 - lxi ( ldir)  ed c, b0 c, b pop
+    ( a system mvi  mem_cont out) next jmp  end-code
+ : clsa atr clsa1 ;
+ code clss ( a video mvi  mem_cont out) b push  h screen lxi
+      m 0 mvi  d screen 1+ lxi
+      b size_scr 1 - lxi ( ldir)  ed c, b0 c, b pop
+    ( a system mvi  mem_cont out) next jmp  end-code
+ : clsg clsa clss ;
+ code outp  d9 c,  c1 c,  d1 c,  ed c,  59 c,  d9 c,
+      ( exx  pop bc  pop de  out [c],e  exx )
+            next jmp end-code
+( title )
+hex
+ : title  cr
+     ."  фopт-cиcтeмa вepcия 1.01 oт 05.08.89"        cr
+     9 spaces ." (cтaндapт forth-83)"                 cr
+     ."        for sinclair & z80a  "                 cr
+     ." b.a.kиpиллин a.a.kлyбoвич h.p.hoздpyнoв"      cr
+     ." лaбopaтopия мaтeмaтичecкoгo oбecпeчeния"      cr
+     ."   hииcчeтмaш'a в ленгосуниверситете "         cr
+     5 spaces ." 198904 лeнингpaд пeтpoдвopeц"        cr
+     0c spaces       ." библиoтeчнaя пл. д. 2"
+            cr    utitle @ ?dup if execute then ;
+( rrestart )
+ l: rrestart ] uinit @ ?dup if execute exit then
+              console title finit decimal
+              #bufff0 @ #buff1 ! firstf0 @ first1 !
+              limitf0 @ limit1 ! empty-buffers
+              true warning ! decimal quit [
+( cold )
+code cold
+ l: initcold    h 0 lxi inks shld inverse
+ shld h inx bright shld l 7 mvi papers shld h voc-linkf0 lxi
+ 1#:  a m mov  h inx  h m mov  l a mov  h ora  2# jz
+      h push  h inx  h inx  e m mov  h inx  d m mov
+      h dcx  h dcx  h dcx  h dcx  a m mov  h dcx
+      l m mov  h a mov  m 1 mvi  h inx  m 80 mvi
+      h inx  m e mov  h inx  m d mov  h pop  1# jmp
+ 2#:  b ev forth-data - mvi  h forth-data lxi
+ 3#:  m a mov  h inx  b dcr  3# jnz
+     rpf0 lhld  r0 shld spf0 lhld  s0 shld  hf0 lhld  hcf shld
+     fencef0 lhld  fence shld
+     voc-linkf0 lhld     voc-link shld
+ l: initwarm  s0 lhld  sphl  r0 lhld  rpcf shld
+     b rrestart lxi  next jmp  end-code
+(    зabepшehиe komпиляции   )
+hex   forth definitions
+dl: maxdata
+endtarget

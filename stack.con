@@ -1,0 +1,498 @@
+(   исходный текст модели форт-системы
+              экраны со 2 по 102
+( компиляция модели форт-системы )
+-- форт-система для cp/m        13.01.88
+--  предописания об'ектов
+      :c block
+(  запуск форт-системы )
+--       вектор альтернативных  слов
+variable uquit
+variable uabort
+variable uinterpret
+variable ufind
+variable uexpect
+variable utitle
+variable ukey         
+variable uemit        
+variable ucr          
+variable utype        
+variable uconsole     
+variable uword        
+variable uinit        
+( forth  h voc-link fence w-link base state )
+variable voc-link
+variable base
+variable state
+( context current dpl hld csp )
+variable current
+variable dpl
+variable hld
+variable csp
+( inb #tib >in span >out blk warning )
+variable inb          -- адрес введенной строки
+variable #tib         -- длина введенной строки
+variable >in          -- указатель в введенной строке
+variable span
+variable >out         -- указатель в выводимой строке
+variable blk          -- номер текущего блока
+variable warning      -- true - печать предупреждений
+(  адресный интерпретатор   next call exit execute )
+   0014 constant next
+   0002 constant call
+83: compile  r> dup 2+ >r @ , ;
+( -1 0 1 2  hex decimal here allot , c, ", )
+-1 constant -1  0 constant 0  1 constant 1  2 constant 2
+  : hex   10 base ! ;
+83: decimal  0a base ! ;
+ : ",       here over c@ 1+ dup allot cmove ;
+( pad count compile )
+83: pad     here 54 + ;
+( s>d m* / mod dabs u/ um/mod m/mod )
+  : s>d     dup 0< ;  -- false = -1, true = 0
+  : m*      2dup xor >r abs swap abs um* r> 0<
+            if dnegate then ;
+83: /       /mod press ;
+83: mod     /mod drop ;
+  : dabs    dup 0< if dnegate then ;
+  : u/      u/mod press ;
+83: um/mod  0 du/mod drop press ;
+  : m/mod     ?dup if dup >r 2dup xor >r >r dabs r@
+                      abs um/mod swap r> 0<
+                      if negate then swap r> 0<
+                      if negate over
+                         if 1- r@ rot - swap then
+                      then rdrop
+                    then  ;
+(  */mod */ <> noop )
+83: */mod     >r m* r> m/mod ;
+83: */        */mod press ;
+  : <>        = 0= ;
+  : noop ;
+( emit key cr type console forth-83 forth-code forth-data )
+83: emit  uemit @ execute >out 1+! ;
+83: key   ukey  @ execute ;
+83: cr    ucr @ execute >out 0! ;
+83: type  utype @ ?dup if execute exit then
+          0 ?do dup c@ emit 1+ loop drop ;
+: console uconsole @ ?dup if execute exit then
+          blk 0! ['] (emit) uemit ! ['] (key) ukey !
+          ['] (cr) ucr ! cr #tib 0! >in 0! ;
+83: forth-83 forth decimal ;
+( bl blank erase space spaces id. )
+ 20 constant bl
+  : blank   bl fill ;
+  : erase   0 fill ;
+83: space   bl emit ;
+83: spaces  0 ?do space loop ;
+  : id.     count 3f and type ;
+( #> <# hold sign >dig # #. #.s #s d.r d. )
+83: #>     2drop hld @ pad over - ;
+83: <#     pad hld !  ;
+83: hold   hld 1-! hld @ c! ;
+83: sign   0< if 2d ( c" -) hold then ;
+  : >dig   9 over u<
+           if  57  ( [ c" a 0a - ] literal)
+           else  30 ( c" 0) then + ;
+83: #      base @ 0 du/mod rot drop rot >dig hold ;
+  : #.     base @ u/mod swap >dig hold ;
+  : #.s    begin #. dup 0= until ;
+83: #s     begin # 2dup or 0= until ;
+  : d.r    >r dup >r dabs <# #s r> sign #>
+           r> over - 0 max spaces type ;
+  : d.     dup >r dabs <# #s r> sign #> type space ;
+( .r .0 . u.    leave  )
+  : .r     >r dup >r abs <# #.s r> sign 0 #>
+           r> over - 0 max spaces type ;
+  : .0     >r <# #.s 0 #>
+           r> over - 0 max 0 ?do 30 ( c" 0) emit loop type ;
+83: .      dup >r abs <# #.s r> sign 0 #> type space ;
+83: u.     0 d. ;
+83: leave  rdrop rdrop rdrop ;
+( cfl >body body> >link link> n>link name> l>name >name )
+  2 constant cfl
+83: >body    cfl + ;
+  : body>    cfl - ;
+  : >link    2- ;
+  : link>    2+ ;
+  : n>link   count 3f and + ;
+  : name>    n>link link> ;
+  : l>name   20 2 do dup i -
+                     c@ 7f and 1+ i =
+                     if i - leave then
+                  loop ;
+  : >name    >link l>name ;
+( word )
+83: word     uword @ ?dup if execute exit then
+             blk @ ?dup if block dup inb ! else tib then
+             >in @ + #tib @ >in @ - enclose
+             if inb @ - >in !
+             else #tib @ >in ! 0 0 then
+             dup here c! here 1+ swap cmove
+             here bl over dup c@ 1+ + c! ;
+( c/l  st-c b-sp c<- )
+50 constant c/l     -- длина строки дисплея
+0d constant st-c   -- стоп-литера для ввода
+8 constant b-sp   -- код возврата курсора при вводе
+8  constant c<-    -- код "курсор влево"
+( expect query )
+83: expect   uexpect @ ?dup if execute exit then
+         over swap 0
+         ?do key
+             dup b-sp = over c<- = or
+                        if >r 2dup = ifnot r>
+                           dup emit bl emit emit
+                           1- r> 1- >r else
+                           rdrop then r> 1- >r
+                        else
+             dup st-c = if drop bl emit leave else
+             dup emit over c! 1+
+                        then then
+          loop swap - span ! ;
+: query   cr 3e ( c" >) emit fflush tib 50 ( tiblen) 1- expect span @
+          dup #tib !   if cr then >in 0! tib inb ! ;
+( !csp ?csp ?exec ?comp ?pairs definitions latest !cf )
+ : !csp    sp@ csp ! ;
+ : ?csp    sp@ csp @ xor abort" сбой стека по csp" ;
+ : ?exec   state @ abort"  требует режима выполнения" ;
+ : ?comp   state @ 0=
+           abort"  требует режима компиляции" ;
+ : ?pairs  xor abort"  непарная скобка" ;
+83: definitions  context @ current ! ;
+ : latest   current @ @ ;
+-- интерпретатор адрес -->  / компиляция поля кода
+ : !cf       ! ;
+-- ( (!code smudge [ ] find )
+ : (!code)  -- <адрес интерпретатора> -->
+            latest name> !cf ;
+ : smudge   latest 40 toggle ;
+83: [ state 0! ;                      immediate
+83: ] -1 state ! ;
+83: find   ufind @ ?dup if execute exit then
+           context @ ?word
+           if true
+           else current @ dup context @ =
+                ifnot ?word else drop false then
+           then
+           if dup name> swap c@ 80 and
+                if 1 else -1 then
+           else false
+           then ;
+( +word -word (."  literal dliteral ' ['] [compile] )
+  : +word  here rot ", swap dup @ , ! ;
+  : -word  ?word if n>link @ w-link @ ! true
+                 else drop false then ;
+  : (.")   r@ count dup 1+ r> + >r type ;
+83: literal  state @ if compile lit , then ;    immediate
+  : dliteral state @ if compile dlit , , then ; immediate
+83: '       bl word find 0= abort" -? " ;
+83: [']     ' [compile] literal ;               immediate
+83: [compile] ' , ;                             immediate
+( convert number )
+83: convert begin  1+ dup >r c@ base @ digit
+            while  swap base @ * rot base @
+                   um* d+ dpl @ 1+ if dpl 1+! then r>
+            repeat r> ;
+83: number  0 0 rot dup 1+ c@ 2d ( c" -) = ( на стеке -1 или 0 )
+            dup >r - -1
+            begin dpl ! convert dup
+                  dup c@ bl <> swap 0= 0= and
+            while dup c@ 2e ( c" .) <> abort"  -? " 0
+            repeat drop r> if dnegate then ;
+( ?stack  interpret )
+ : ?stack   sp@ s0 @ swap u< abort" исчерпание стека" ;
+ : interpret uinterpret @ ?dup if execute exit then
+             begin bl word find dup
+                   if 0< state @ and
+                      if , else execute then
+                   else drop number dpl @ 1+
+                           if [compile] dliteral
+                           else drop [compile] literal
+                           then
+                   then    ?stack
+             again ;
+--  конец строки
+  : ;s    rdrop ; -- конец интерпретации экрана
+( quit  abort (abort" abort" )
+83: quit      uquit @ ?dup if execute then
+              r0 @ rp! console [compile] [
+                  forth definitions
+              begin query interpret again ;
+83: abort     uabort @ ?dup if execute then blk @ ?dup
+    if cr ." ошибка: экран " u. ." строка "
+                  >in @ 40 u/ dup . cr blk @ block swap
+                  40 * + 40 type
+              then s0 @ sp! quit ;
+  : (abort")  if   here id. space r> id. abort
+              else r> dup c@ 1+ + >r then ;
+83: abort"    ?comp compile (abort")
+              22 ( c" ") word ", ;              immediate
+( create  <builds  (does> does> )
+ : create    bl word warning @
+             if dup find press
+             if dup id. ."  уже определен " cr then then
+             current @ +word cfl allot next (!code) ;
+ : <builds   create ;
+ : (does>)   r> (!code) ;
+83: does>    compile (does>) call here !cf
+             cfl allot ;          immediate
+( constant variable vocabulary string : ; )
+83: constant create  , ['] @ (!code) ;
+83: variable create 0 , next (!code) ;
+83: vocabulary  create  01 c, 20 c, current @ 2- , here
+           voc-link @ , voc-link ! does> 2+ context ! ;
+: rom-vocabulary does> 2+ @ 2+ context ! ;
+: string   create ", next (!code) ;
+83: :      ?exec !csp current @ context !
+           create smudge ] call (!code) ;     immediate
+83: ;      ?comp ?csp compile exit
+           smudge [compile] [ ;               immediate
+( @execute  quan vect to )
+: quan   0 constant  2- 2- ! here cfl allot !cf ;
+: vect   quan ['] @execute (!code) ;
+: to     bl word find ?dup 0= abort"  -?"
+         0< state @ and if >body 2+ ,
+                        else >body 2+ execute
+                        then ;           immediate
+: at     ' >body [compile] literal ;     immediate
+( immediate depth c" " ." .(  )
+83: immediate  latest 80 toggle ;
+  : depth  sp@ s0 @ swap - 2/ ;
+  : c"    bl word 1+ c@ [compile] literal ;   immediate
+  : "   --     --> <адрес строки>
+          state @
+          if compile (") 22 ( c" ") word ",
+          else 22 ( c" ") word pad over c@
+               1+ cmove pad
+          then ;                              immediate
+83: ."    ?comp compile (.") 22 ( c" ") word ",  ;  immediate
+83: .(    29 ( c" ) word count type ;              immediate
+( >mark >resolve <mark <resolve )
+  : >mark   here 0 , ;
+  : >resolve  here swap ! ;
+  : <mark   here ;
+  : <resolve , ;
+( if  ifnot else then begin again  )
+83: if      ?comp compile ?branch >mark 2 ;     immediate
+  : ifnot   ?comp compile n?branch >mark 2 ;    immediate
+83: else    ?comp 2 ?pairs compile branch
+            >mark swap >resolve 2 ;             immediate
+83: then    ?comp 2 ?pairs >resolve ;           immediate
+83: begin   ?comp <mark 1  ;                    immediate
+  : again   ?comp 1 ?pairs compile branch
+            <resolve ;                          immediate
+( do ?do loop +loop until while repeat )
+83: do      ?comp compile (do) >mark <mark 3 ;  immediate
+  : ?do     ?comp compile (?do) >mark <mark 3 ; immediate
+83: loop    ?comp 3 ?pairs compile (loop)
+            <resolve >resolve ;                 immediate
+83: +loop   ?comp 3 ?pairs compile (+loop)
+            <resolve >resolve ;                 immediate
+83: until   ?comp 1 ?pairs compile ?branch
+            <resolve ;                          immediate
+83: while   ?comp 1 ?pairs 1 [compile] if 2+ ;  immediate
+83: repeat  ?comp >r >r [compile] again
+            r> r> 2- [compile] then ;           immediate
+( >prt ptype break dump )
+ : >prt     dup bl u<
+            over dup 07f > swap 0a0 < and or
+                      if drop 2e ( c" .) then ;
+ : ptype    0 ?do dup c@ >prt emit 1+ loop drop ;
+ : break    ?key if drop key 63 ( c" c) = ?dup
+            if cr abort"  - прерван" then then ;
+ : dump     0f + 10 u/ 0
+           ?do cr break base @ swap hex
+               dup 4 .0 space space dup
+              10 0 do dup c@ 2 .0 space 1+
+                   loop swap 10 ptype swap base !
+              loop drop ;
+( trail nlist words vlist )
+ : trail  c/l >out @ - ;
+ : nlist  begin @ dup
+          while dup count 3f and trail over u<
+                if cr then dup 8 + -8 and over -
+                -rot type trail min
+                0 max spaces n>link break
+          repeat drop ;
+ : words  context @ nlist ;
+ : vlist  words ;
+( -- (  s.  )
+ : --  -- коментарий до конца строки
+          blk @ if >in @ 3f + -40 and
+                else #tib @ then >in ! ;   immediate
+83: (    29 ( c" ) word drop ;                   immediate
+ : s.   depth dup 0>
+                 if 1+ 1 do s0 @ i 2* - @ . loop
+                 else drop ." стек пуст" then ;
+( ?current scratch join new )
+: ?current current @ ?word 0= abort"  - ?" ;
+: scratch ?exec bl word current @ -word
+          0= abort"  - ?" ;                immediate
+: join   ?exec bl word  -- забыть кроме последнего
+        ?current n>link @ latest n>link ! ;  immediate
+-- заменить ctapoe определение ha hoboe
+: new ?exec bl word  dup ?current    -- адрес новой статьи
+      current @ >r               -- сохранить старый current
+      dup n>link current !       -- установить новый current
+      name> swap ?current name>  -- адр нов и стар процедур
+      0c3 over c! 1+ !            -- jmp на новую процедуру
+      r> current ! ;  immediate   -- восстановить current
+( forget )
+83: forget  bl word ?current dup
+            fence @ u< abort" выход за fence"
+            >r voc-link @
+            begin r@ over u<
+            while forth
+                  definitions @ dup voc-link !
+            repeat
+            begin dup 4 - 
+                  begin n>link @ dup r@ u<
+                  until
+                  over 2- ! @ ?dup 0=
+            until r> h ! ;
+( ufcb sfcb fcb dosbuff ur/w fdos )
+variable ur/w         -- процедура write - read
+( (r/w flinit finit )
+: rblk ; : stfile ;   : ?terminal ( --> tf ) ;
+: wblk ;
+: (r/w)   ( addr nblk r/w --> / 0 - запись )
+          if rblk else wblk then ;
+-- инициализация экранного файла
+: flinit   ['] (r/w) ur/w ! stfile ;
+: finit flinit ;
+( dbh dbt b/buf hdbt #buff1 first1 limit1 prev use )
+--    виртуальная память
+4 constant dbh       -- заголовок
+2 constant dbt       -- хвост
+400 constant  b/buf -- длина блока
+406  constant  hdbt -- длина буфера
+variable #buff1    -- число буферов
+variable first1 -- адрес первого буфера
+variable limit1 -- адрес после последнего буфера
+variable prev
+variable use
+( bb-cnt scr lcnt #buff first limit dbc r/w )
+variable bb-cnt      -- счетчик обращений
+variable scr
+variable lcnt
+: #buff #buff1 @ ;
+: first first1 @ ;
+: limit limit1 @ ;
+: dbc    2+ ;        -- последнее обращение
+: r/w    ( addr n -> / 0 - write, 1 - read )
+         ur/w @ ( ?dup 0= abort" ? r/w" ) execute ;
+( empty-buffers save-buffers flush update )
+: empty-buffers first limit over - erase
+         limit first do 07fff i ! hdbt +loop
+         1 bb-cnt ! first dup prev ! use ! ;
+: save-buffers limit first
+         do i @ 8000 and
+            if i @ 07fff and dup i !
+               i dbh + swap 0 r/w
+            then hdbt
+         +loop ;
+: flush  save-buffers empty-buffers ;
+: update prev @ dup @ 8000 or swap ! ;
+( +db blk-find stump buf-rlse )
+: +db    ( addr-db -> addr-db tf )
+         hdbt + dup limit =
+         if drop first then dup prev @ = 0= ;
+: blk-find ( n -> addr-db true / false, устан. use )
+         first use ! prev @
+         begin 2dup @ 7fff and =
+               if  press true exit then
+               dup dbc @ use @ dbc @ u<
+               if dup use !  then +db 0=
+         until 2drop false ;
+: stump  bb-cnt @ prev @ dbc ! bb-cnt 1+! ;
+: buf-rlse ( addr-db -> )
+         dup @ 0< if dup @ 7fff and over
+                     dbh + over 0 r/w swap !
+                  else drop then ;
+( buffer block )
+: +buf   ( addr -> addr tf )
+         dbh - +db swap dbh + swap ;
+: buffer ( n -> addr )
+         dup blk-find
+         if press
+         else use @ dup buf-rlse swap over !
+         then dup prev ! stump dbh + ;
+: block  ( n -> addr )
+         dup blk-find
+         if press
+         else use @ dup buf-rlse swap over !
+              dup dbh + over @ 1 r/w
+         then dup prev ! stump dbh + ;
+( list load --> thru )
+: list   ( n -> )
+         dup scr ! dup cr ."  экран # " . block 10 0
+         do cr i 2 .r space space dup 40 type 40 + break
+         loop drop ;
+: load    ?dup ifnot cr
+          ." загрузка блока 0"  abort
+               then #tib @ >r >in @ >r
+          inb @ >r blk @ >r  blk !
+          >in 0! b/buf #tib !
+                    interpret
+          r> blk ! r> inb ! r> >in !
+          r> #tib ! ;
+: -->     blk 1+! >in 0! ;     immediate
+: thru 1+ swap do i load loop ;
+( (using using )
+: (using) ( fcb-addr -> ) >r bl word count 1+ >in -!
+        r@ 1+ 0b blank dup 1+ c@ 3a ( c" :) =
+        if 2 >in +! c@ 40 ( c" @) -
+        else drop 0 then r@ c!             ( дисковод )
+        2e ( c" .) word count 8 min r@ 1+ swap cmove  ( имя )
+        bl word count 3 min r@ 9 + swap cmove ( расширение )
+        r> 0c + 4 erase ;
+-- обращение: using a:name.ext или using name.ext
+( : using flush  ufcb (using
+        movfcb ?open ifnot cr ." новый файл" cr
+                           7 emit then ;
+( savc  save )
+--  сохранение системы с инициализацией по cold
+( : savc    sfcb (using smovfcb delete make
+          f-code here over - 7f + 80 u/ 1+ 0
+          do dup dosbuff 80 cmove swrite
+             80 + loop drop close ;
+-- сохранение c инициализацией по warm
+: save    f-code 3 erase savc ;
+( bye (emit (key (cr ?key ?terminal )
+-- ввод-вывод для cp/m
+( печать первых строк экранов   index llist )
+( обращение: от-какого до-какого index )
+: index 1+ swap
+        do cr i 2 .r 2 spaces i block 40 type break
+        loop ;
+: llist 1+ swap cr do cr i list cr loop ;
+( копирование экранов через память  m>d d>m d<>d )
+ : d>m ( addr nнач nкон -> ) ( диск -> память )
+      1+ swap do i block over b/buf cmove
+                 b/buf +
+              loop drop ;
+ : m>d ( addr nнач nкон -> ) ( память -> диск )
+      1+ swap do dup i buffer update
+                 b/buf cmove b/buf +
+              loop drop flush 0 block drop ;
+ : d<>d ( n1 n2 -> ) ( диск<->диск )
+    block update dup pad b/buf cmove
+    swap block update dup >r swap b/buf cmove
+    pad r> b/buf cmove flush 0 block drop ;
+
+ : title  cr
+(     ."  форт-система версия 1.01 от 05.08.89"        cr
+     9 spaces ." (стандарт forth-83"                 cr
+     ."        for sinclair & z80a  "                 cr
+     ." В.А.Кириллин А.А.Клyбович Н.Р.Ноздрyнов"      cr
+     ." лаборатория математического обеспечения"      cr
+     ."   НИИСЧЕТМАШ'а в ЛенГосУниверситете "         cr
+     5 spaces ." 198904 Ленинград Петродворец"        cr
+     0c spaces       ." Библиотечная пл. д. 2"
+ )            cr    utitle @ ?dup if execute then 34 ;
+( rrestart )
+ : rrestart   forth uinit @ ?dup if execute exit then
+              console title finit decimal
+              2 ( #bufff0) #buff1 ! 0d500 ( firstf0) @ first1 !
+              0dd0c ( limitf0) @ limit1 ! empty-buffers
+              true warning ! decimal quit ;
+stop-compilation
